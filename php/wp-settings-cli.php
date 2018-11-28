@@ -19,7 +19,7 @@ require ABSPATH . WPINC . '/plugin.php';
 
 /*
  * These can't be directly globalized in version.php. When updating,
- * we're including version.php from another install and don't want
+ * we're including version.php from another installation and don't want
  * these values to be overridden if already set.
  */
 global $wp_version, $wp_db_version, $tinymce_version, $required_php_version, $required_mysql_version, $wp_local_package;
@@ -42,7 +42,7 @@ wp_check_php_mysql_versions();
 
 // Disable magic quotes at runtime. Magic quotes are added using wpdb later in wp-settings.php.
 ini_set( 'magic_quotes_runtime', 0 );
-ini_set( 'magic_quotes_sybase',  0 );
+ini_set( 'magic_quotes_sybase', 0 );
 
 // WordPress calculates offsets from UTC.
 date_default_timezone_set( 'UTC' );
@@ -385,7 +385,7 @@ wp_templating_constants();
 // Load the default text localization domain.
 load_default_textdomain();
 
-$locale = get_locale();
+$locale      = get_locale();
 $locale_file = WP_LANG_DIR . "/$locale.php";
 if ( ( 0 === validate_file( $locale ) ) && is_readable( $locale_file ) ) {
 	require $locale_file;

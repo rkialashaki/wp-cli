@@ -46,16 +46,19 @@ Feature: Get help about WP-CLI commands
       """
     And STDERR should be empty
 
+    When I run `wp post list --post_type=post --posts_per_page=5 --help --prompt`
+    Then STDOUT should contain:
+      """
+      wp post list
+      """
+    And STDERR should be empty
+
   # Prior to WP 4.3 widgets & others used PHP 4 style constructors and prior to WP 3.9 wpdb used the mysql extension which can all lead (depending on PHP version) to PHP Deprecated notices.
   @require-wp-4.3
   Scenario: Help for internal commands with WP
-    Given a WP install
-    And a stderr-error-log.php file:
-      """
-      <?php define( 'WP_DEBUG', true ); define( 'WP_DEBUG_DISPLAY', null ); define( 'WP_DEBUG_LOG', false ); ini_set( "error_log", '' ); ini_set( 'display_errors', 'STDERR' );
-      """
+    Given a WP installation
 
-    When I run `wp --require=stderr-error-log.php help`
+    When I run `wp help`
     Then STDOUT should contain:
       """
         Run 'wp help <command>' to get more information on a specific command.
@@ -63,35 +66,34 @@ Feature: Get help about WP-CLI commands
       """
     And STDERR should be empty
 
-    When I run `wp --require=stderr-error-log.php help core`
+    When I run `wp help core`
     Then STDOUT should contain:
       """
         wp core
       """
     And STDERR should be empty
 
-    When I run `wp --require=stderr-error-log.php help core download`
+    When I run `wp help core download`
     Then STDOUT should contain:
       """
         wp core download
       """
     And STDERR should be empty
 
-    When I run `wp --require=stderr-error-log.php help help`
+    When I run `wp help help`
     Then STDOUT should contain:
       """
         wp help
       """
     And STDERR should be empty
 
-    When I run `wp --require=stderr-error-log.php help help`
+    When I run `wp help help`
     Then STDOUT should contain:
       """
       GLOBAL PARAMETERS
       """
     And STDERR should be empty
 
-  @less-than-php-7.2
   Scenario: Help when WordPress is downloaded but not installed
     Given an empty directory
 
@@ -163,7 +165,7 @@ Feature: Get help about WP-CLI commands
     And STDOUT should be empty
 
   Scenario: Help for nonexistent commands
-    Given a WP install
+    Given a WP installation
 
     When I try `wp help non-existent-command`
     Then the return code should be 1
@@ -177,7 +179,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'non-existent-command' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'non-existent-command' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'non-existent-command' is not a registered wp command. See 'wp help' for available commands.
       """
     And STDOUT should be empty
@@ -194,25 +196,25 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'non-existent-command non-existent-subcommand' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'non-existent-command non-existent-subcommand' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'non-existent-command' is not a registered wp command. See 'wp help' for available commands.
       """
     And STDOUT should be empty
 
-  Scenario: Help for nonexistent commands without a WP install
+  Scenario: Help for nonexistent commands without a WP installation
     Given an empty directory
 
     When I try `wp help non-existent-command`
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'non-existent-command' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'non-existent-command' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'non-existent-command' is not a registered wp command. See 'wp help' for available commands.
       """
     And STDOUT should be empty
 
   Scenario: Help for specially treated commands with nonexistent subcommands
-    Given a WP install
+    Given a WP installation
 
     When I try `wp help config non-existent-subcommand`
     Then the return code should be 1
@@ -226,7 +228,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'config non-existent-subcommand' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'config non-existent-subcommand' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'non-existent-subcommand' is not a registered subcommand of 'config'. See 'wp help config' for available subcommands.
       """
     And STDOUT should be empty
@@ -243,7 +245,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'core non-existent-subcommand' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'core non-existent-subcommand' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'non-existent-subcommand' is not a registered subcommand of 'core'. See 'wp help core' for available subcommands.
       """
     And STDOUT should be empty
@@ -260,7 +262,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'db non-existent-subcommand' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'db non-existent-subcommand' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'non-existent-subcommand' is not a registered subcommand of 'db'. See 'wp help db' for available subcommands.
       """
     And STDOUT should be empty
@@ -272,7 +274,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'confi' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'confi' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'confi' is not a registered wp command. See 'wp help' for available commands.
       Did you mean 'config'?
       """
@@ -282,7 +284,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'cor' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'cor' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'cor' is not a registered wp command. See 'wp help' for available commands.
       Did you mean 'core'?
       """
@@ -292,7 +294,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'd' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'd' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'd' is not a registered wp command. See 'wp help' for available commands.
       Did you mean 'db'?
       """
@@ -302,7 +304,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'packag' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'packag' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'packag' is not a registered wp command. See 'wp help' for available commands.
       Did you mean 'package'?
       """
@@ -315,7 +317,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'config creat' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'config creat' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'creat' is not a registered subcommand of 'config'. See 'wp help config' for available subcommands.
       Did you mean 'create'?
       """
@@ -325,7 +327,7 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'core versio' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'core versio' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'versio' is not a registered subcommand of 'core'. See 'wp help core' for available subcommands.
       Did you mean 'version'?
       """
@@ -335,13 +337,13 @@ Feature: Get help about WP-CLI commands
     Then the return code should be 1
     And STDERR should be:
       """
-      Warning: No WordPress install found. If the command 'db chec' is in a plugin or theme, pass --path=`path/to/wordpress`.
+      Warning: No WordPress installation found. If the command 'db chec' is in a plugin or theme, pass --path=`path/to/wordpress`.
       Error: 'chec' is not a registered subcommand of 'db'. See 'wp help db' for available subcommands.
       Did you mean 'check'?
       """
     And STDOUT should be empty
 
-  Scenario: No WordPress install warning or suggestions for disabled commands
+  Scenario: No WordPress installation warning or suggestions for disabled commands
     Given an empty directory
     And a wp-cli.yml file:
       """
@@ -366,7 +368,7 @@ Feature: Get help about WP-CLI commands
     And STDOUT should be empty
 
   Scenario: Help for third-party commands
-    Given a WP install
+    Given a WP installation
     And a wp-content/plugins/test-cli/command.php file:
       """
       <?php
@@ -407,7 +409,7 @@ Feature: Get help about WP-CLI commands
       """
 
   Scenario: Help for commands with magic methods
-    Given a WP install
+    Given a WP installation
     And a wp-content/plugins/test-cli/command.php file:
       """
       <?php
@@ -454,7 +456,7 @@ Feature: Get help about WP-CLI commands
       """
 
   Scenario: Help for commands loaded into existing namespaces
-    Given a WP install
+    Given a WP installation
     And a wp-content/plugins/test-cli/command.php file:
       """
       <?php
@@ -484,9 +486,9 @@ Feature: Get help about WP-CLI commands
     Given a wp-content/plugins/test-cli/command.php file:
       """
       <?php
-      // Plugin Name: Test CLI Extra Config Command
+      // Plugin Name: Test CLI Extra Command
 
-      class Test_CLI_Extra_Config_Command extends WP_CLI_Command {
+      class Test_CLI_Extra_Command extends WP_CLI_Command {
 
         /**
          * A dummy command.
@@ -497,72 +499,33 @@ Feature: Get help about WP-CLI commands
 
       }
 
-      WP_CLI::add_command( 'config test-extra', 'Test_CLI_Extra_Config_Command' );
+      WP_CLI::add_command( 'config test-extra-config', 'Test_CLI_Extra_Command' );
+      WP_CLI::add_command( 'core test-extra-core', 'Test_CLI_Extra_Command' );
+      WP_CLI::add_command( 'db test-extra-db', 'Test_CLI_Extra_Command' );
       """
-    And I run `wp plugin activate test-cli`
 
     When I run `wp help config`
     Then STDOUT should contain:
       """
-      test-extra
+      test-extra-config
       """
-
-    Given a wp-content/plugins/test-cli/command.php file:
-      """
-      <?php
-      // Plugin Name: Test CLI Extra Core Command
-
-      class Test_CLI_Extra_Core_Command extends WP_CLI_Command {
-
-        /**
-         * A dummy command.
-         *
-         * @subcommand my-command
-         */
-        function my_command() {}
-
-      }
-
-      WP_CLI::add_command( 'core test-extra', 'Test_CLI_Extra_Core_Command' );
-      """
-    And I run `wp plugin activate test-cli`
 
     When I run `wp help core`
     Then STDOUT should contain:
       """
-      test-extra
+      test-extra-core
       """
-
-    Given a wp-content/plugins/test-cli/command.php file:
-      """
-      <?php
-      // Plugin Name: Test CLI Extra DB Command
-
-      class Test_CLI_Extra_DB_Command extends WP_CLI_Command {
-
-        /**
-         * A dummy command.
-         *
-         * @subcommand my-command
-         */
-        function my_command() {}
-
-      }
-
-      WP_CLI::add_command( 'db test-extra', 'Test_CLI_Extra_DB_Command' );
-      """
-    And I run `wp plugin activate test-cli`
 
     When I run `wp help db`
     Then STDOUT should contain:
       """
-      test-extra
+      test-extra-db
       """
 
   Scenario: Help renders global parameters correctly
-    Given a WP install
+    Given a WP installation
 
-    When I run `wp help import get`
+    When I run `wp help core`
     Then STDOUT should contain:
       """
       GLOBAL PARAMETERS
@@ -593,7 +556,7 @@ Feature: Get help about WP-CLI commands
       """
 
   Scenario: Display alias in man page
-    Given a WP install
+    Given a WP installation
 
     When I run `wp help plugin update`
     Then STDOUT should contain:
@@ -610,7 +573,7 @@ Feature: Get help about WP-CLI commands
       """
 
   Scenario: Help for commands should wordwrap well
-    Given a WP install
+    Given a WP installation
     And a wp-content/plugins/test-cli/command.php file:
       """
       <?php
@@ -721,7 +684,7 @@ Feature: Get help about WP-CLI commands
       """
     And STDERR should be empty
 
-    When I run `COLUMNS=80 wp help test-wordwrap my_command | wc -L`
+    When I run `COLUMNS=80 wp help test-wordwrap my_command | awk '{print length, $0}' | sort -nr | head -1 | cut -f1 -d" "`
     Then STDOUT should be:
       """
       80
@@ -797,7 +760,7 @@ Feature: Get help about WP-CLI commands
       """
     And STDERR should be empty
 
-    When I run `TERM=vt100 COLUMNS=40 wp help test-wordwrap my_command | sed '/\-\-ssh/d' | wc -L`
+    When I run `TERM=vt100 COLUMNS=40 wp help test-wordwrap my_command | sed '/\-\-ssh/d' | awk '{print length, $0}' | sort -nr | head -1 | cut -f1 -d" "`
     Then STDOUT should be:
       """
       40
@@ -831,7 +794,7 @@ Feature: Get help about WP-CLI commands
     And STDERR should be empty
 
   Scenario: Help for commands with subcommands should wordwrap well
-    Given a WP install
+    Given a WP installation
     And a wp-content/plugins/test-cli/command.php file:
       """
       <?php
@@ -936,14 +899,14 @@ Feature: Get help about WP-CLI commands
       """
     And STDERR should be empty
 
-    When I run `TERM=vt100 COLUMNS=80 wp help test-wordwrap | wc -L`
+    When I run `TERM=vt100 COLUMNS=80 wp help test-wordwrap | awk '{print length, $0}' | sort -nr | head -1 | cut -f1 -d" "`
     Then STDOUT should be:
       """
       80
       """
 
   Scenario: Long description for top-level command which has reference link display well
-    Given a WP install
+    Given a WP installation
     And a command.php file:
       """
       <?php
@@ -985,18 +948,8 @@ Feature: Get help about WP-CLI commands
         [2] http://wp-cli.org/
       """
 
-    When I run `wp help role`
-    Then STDOUT should contain:
-      """
-        See references for [Roles and Capabilities][1] and [WP User class][2].
-
-        ---
-        [1] https://codex.wordpress.org/Roles_and_Capabilities
-        [2] https://codex.wordpress.org/Class_Reference/WP_User
-      """
-
   Scenario: Very long description for top-level command which has reference link display well
-    Given a WP install
+    Given a WP installation
     And a command.php file:
       """
       <?php
@@ -1046,3 +999,18 @@ Feature: Get help about WP-CLI commands
         [1] https://wordpress.org/
         [2] http://wp-cli.org/
       """
+
+  Scenario Outline: Check that proc_open() and proc_close() aren't disabled for help pager
+    Given an empty directory
+    When I try `{INVOKE_WP_CLI_WITH_PHP_ARGS--ddisable_functions=<func>} help --debug`
+    Then STDERR should contain:
+      """
+      Warning: check_proc_available() failed in pass_through_pager().
+      """
+    And STDOUT should not be empty
+    And the return code should be 0
+
+    Examples:
+      | func       |
+      | proc_open  |
+      | proc_close |

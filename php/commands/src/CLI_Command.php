@@ -23,15 +23,19 @@ use \WP_CLI\Utils;
  *     New version works. Proceeding to replace.
  *     Success: Updated WP-CLI to 0.24.1.
  *
+ *     # Clear the internal WP-CLI cache.
+ *     $ wp cli cache clear
+ *     Success: Cache cleared.
+ *
  * @when before_wp_load
  */
 class CLI_Command extends WP_CLI_Command {
 
 	private function command_to_array( $command ) {
 		$dump = array(
-			'name' => $command->get_name(),
+			'name'        => $command->get_name(),
 			'description' => $command->get_shortdesc(),
-			'longdesc' => $command->get_longdesc(),
+			'longdesc'    => $command->get_longdesc(),
 		);
 
 		foreach ( $command->get_subcommands() as $subcommand ) {
@@ -63,6 +67,8 @@ class CLI_Command extends WP_CLI_Command {
 	 *
 	 * Helpful for diagnostic purposes, this command shares:
 	 *
+	 * * OS information.
+	 * * Shell information.
 	 * * PHP binary used.
 	 * * PHP binary version.
 	 * * php.ini configuration file used (which is typically different than web).
@@ -89,17 +95,36 @@ class CLI_Command extends WP_CLI_Command {
 	 *
 	 *     # Display various data about the CLI environment.
 	 *     $ wp cli info
-	 *     PHP binary: /usr/bin/php5
-	 *     PHP version:    5.5.9-1ubuntu4.16
-	 *     php.ini used:   /etc/php5/cli/php.ini
+	 *     OS:  Linux 4.10.0-42-generic #46~16.04.1-Ubuntu SMP Mon Dec 4 15:57:59 UTC 2017 x86_64
+	 *     Shell:   /usr/bin/zsh
+	 *     PHP binary:  /usr/bin/php
+	 *     PHP version: 7.1.12-1+ubuntu16.04.1+deb.sury.org+1
+	 *     php.ini used:    /etc/php/7.1/cli/php.ini
 	 *     WP-CLI root dir:    phar://wp-cli.phar
 	 *     WP-CLI packages dir:    /home/person/.wp-cli/packages/
 	 *     WP-CLI global config:
 	 *     WP-CLI project config:
-	 *     WP-CLI version: 0.24.1
+	 *     WP-CLI version: 1.5.0
 	 */
 	public function info( $_, $assoc_args ) {
-		$php_bin = WP_CLI::get_php_binary();
+		$php_bin = Utils\get_php_binary();
+
+		// php_uname() $mode argument was only added with PHP 7.0+. Fall back to
+		// entire string for older versions.
+		$system_os = PHP_MAJOR_VERSION < 7
+			? php_uname()
+			: sprintf(
+				'%s %s %s %s',
+				php_uname( 's' ),
+				php_uname( 'r' ),
+				php_uname( 'v' ),
+				php_uname( 'm' )
+			);
+
+		$shell = getenv( 'SHELL' );
+		if ( ! $shell && Utils\is_windows() ) {
+			$shell = getenv( 'ComSpec' );
+		}
 
 		$runner = WP_CLI::get_runner();
 
@@ -109,16 +134,20 @@ class CLI_Command extends WP_CLI_Command {
 		}
 		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' ) === 'json' ) {
 			$info = array(
-				'php_binary_path' => $php_bin,
-				'global_config_path' => $runner->global_config_path,
-				'project_config_path' => $runner->project_config_path,
-				'wp_cli_dir_path' => WP_CLI_ROOT,
+				'php_binary_path'          => $php_bin,
+				'global_config_path'       => $runner->global_config_path,
+				'project_config_path'      => $runner->project_config_path,
+				'wp_cli_dir_path'          => WP_CLI_ROOT,
 				'wp_cli_packages_dir_path' => $packages_dir,
-				'wp_cli_version' => WP_CLI_VERSION,
+				'wp_cli_version'           => WP_CLI_VERSION,
+				'system_os'                => $system_os,
+				'shell'                    => $shell,
 			);
 
 			WP_CLI::line( json_encode( $info ) );
 		} else {
+			WP_CLI::line( "OS:\t" . $system_os );
+			WP_CLI::line( "Shell:\t" . $shell );
 			WP_CLI::line( "PHP binary:\t" . $php_bin );
 			WP_CLI::line( "PHP version:\t" . PHP_VERSION );
 			WP_CLI::line( "php.ini used:\t" . get_cfg_var( 'cfg_file_path' ) );
@@ -258,11 +287,11 @@ class CLI_Command extends WP_CLI_Command {
 		if ( Utils\get_flag_value( $assoc_args, 'nightly' ) ) {
 			WP_CLI::confirm( sprintf( 'You have version %s. Would you like to update to the latest nightly?', WP_CLI_VERSION ), $assoc_args );
 			$download_url = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli-nightly.phar';
-			$md5_url = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli-nightly.phar.md5';
+			$md5_url      = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli-nightly.phar.md5';
 		} elseif ( Utils\get_flag_value( $assoc_args, 'stable' ) ) {
 			WP_CLI::confirm( sprintf( 'You have version %s. Would you like to update to the latest stable release?', WP_CLI_VERSION ), $assoc_args );
 			$download_url = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar';
-			$md5_url = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar.md5';
+			$md5_url      = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar.md5';
 		} else {
 
 			$updates = $this->get_updates( $assoc_args );
@@ -278,7 +307,7 @@ class CLI_Command extends WP_CLI_Command {
 			WP_CLI::confirm( sprintf( 'You have version %s. Would you like to update to %s?', WP_CLI_VERSION, $newest['version'] ), $assoc_args );
 
 			$download_url = $newest['package_url'];
-			$md5_url = str_replace( '.phar', '.phar.md5', $download_url );
+			$md5_url      = str_replace( '.phar', '.phar.md5', $download_url );
 		}
 
 		WP_CLI::log( sprintf( 'Downloading from %s...', $download_url ) );
@@ -287,7 +316,7 @@ class CLI_Command extends WP_CLI_Command {
 
 		$headers = array();
 		$options = array(
-			'timeout' => 600,  // 10 minutes ought to be enough for everybody.
+			'timeout'  => 600,  // 10 minutes ought to be enough for everybody.
 			'filename' => $temp,
 		);
 
@@ -297,7 +326,7 @@ class CLI_Command extends WP_CLI_Command {
 		if ( 20 != substr( $md5_response->status_code, 0, 2 ) ) {
 			WP_CLI::error( "Couldn't access md5 hash for release (HTTP code {$md5_response->status_code})." );
 		}
-		$md5_file = md5_file( $temp );
+		$md5_file     = md5_file( $temp );
 		$release_hash = trim( $md5_response->body );
 		if ( $md5_file === $release_hash ) {
 			WP_CLI::log( 'md5 hash verified: ' . $release_hash );
@@ -306,10 +335,10 @@ class CLI_Command extends WP_CLI_Command {
 		}
 
 		$allow_root = WP_CLI::get_runner()->config['allow-root'] ? '--allow-root' : '';
-		$php_binary = WP_CLI::get_php_binary();
-		$process = WP_CLI\Process::create( "{$php_binary} $temp --info {$allow_root}" );
-		$result = $process->run();
-		if ( 0 !== $result->return_code || false === stripos( $result->stdout, 'WP-CLI version:' ) ) {
+		$php_binary = Utils\get_php_binary();
+		$process    = WP_CLI\Process::create( "{$php_binary} $temp --info {$allow_root}" );
+		$result     = $process->run();
+		if ( 0 !== $result->return_code || false === stripos( $result->stdout, 'WP-CLI version' ) ) {
 			$multi_line = explode( PHP_EOL, $result->stderr );
 			WP_CLI::error_multi_line( $multi_line );
 			WP_CLI::error( 'The downloaded PHAR is broken, try running wp cli update again.' );
@@ -365,9 +394,9 @@ class CLI_Command extends WP_CLI_Command {
 		$release_data = json_decode( $response->body );
 
 		$updates = array(
-			'major'      => false,
-			'minor'      => false,
-			'patch'      => false,
+			'major' => false,
+			'minor' => false,
+			'patch' => false,
 		);
 		foreach ( $release_data as $release ) {
 
@@ -382,12 +411,16 @@ class CLI_Command extends WP_CLI_Command {
 				continue;
 			}
 
+			if ( ! isset( $release->assets[0]->browser_download_url ) ) {
+				continue;
+			}
+
 			if ( ! empty( $updates[ $update_type ] ) && ! Comparator::greaterThan( $release_version, $updates[ $update_type ]['version'] ) ) {
 				continue;
 			}
 
 			$updates[ $update_type ] = array(
-				'version' => $release_version,
+				'version'     => $release_version,
 				'update_type' => $update_type,
 				'package_url' => $release->assets[0]->browser_download_url,
 			);
@@ -407,16 +440,16 @@ class CLI_Command extends WP_CLI_Command {
 
 		if ( empty( $updates ) && preg_match( '#-alpha-(.+)$#', WP_CLI_VERSION, $matches ) ) {
 			$version_url = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/NIGHTLY_VERSION';
-			$response = Utils\http_request( 'GET', $version_url );
+			$response    = Utils\http_request( 'GET', $version_url );
 			if ( ! $response->success || 200 !== $response->status_code ) {
 				WP_CLI::error( sprintf( 'Failed to get current nightly version (HTTP code %d)', $response->status_code ) );
 			}
 			$nightly_version = trim( $response->body );
 			if ( WP_CLI_VERSION != $nightly_version ) {
 				$updates['nightly'] = array(
-					'version'        => $nightly_version,
-					'update_type'    => 'nightly',
-					'package_url'    => 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli-nightly.phar',
+					'version'     => $nightly_version,
+					'update_type' => 'nightly',
+					'package_url' => 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli-nightly.phar',
 				);
 			}
 		}
@@ -516,7 +549,7 @@ class CLI_Command extends WP_CLI_Command {
 	 *     eval-file
 	 */
 	public function completions( $_, $assoc_args ) {
-		$line = substr( $assoc_args['line'], 0, $assoc_args['point'] );
+		$line  = substr( $assoc_args['line'], 0, $assoc_args['point'] );
 		$compl = new \WP_CLI\Completions( $line );
 		$compl->render();
 	}
@@ -524,9 +557,9 @@ class CLI_Command extends WP_CLI_Command {
 	/**
 	 * List available WP-CLI aliases.
 	 *
-	 * Aliases are shorthand references to WordPress installs. For instance,
-	 * `@dev` could refer to a development install and `@prod` could refer to
-	 * a production install. This command gives you visibility in what
+	 * Aliases are shorthand references to WordPress installations. For instance,
+	 * `@dev` could refer to a development installation and `@prod` could refer
+	 * to a production installation. This command gives you visibility in what
 	 * registered aliases you have available.
 	 *
 	 * ## OPTIONS
@@ -538,6 +571,7 @@ class CLI_Command extends WP_CLI_Command {
 	 * options:
 	 *   - yaml
 	 *   - json
+	 *   - var_export
 	 * ---
 	 *
 	 * ## EXAMPLES
@@ -545,6 +579,7 @@ class CLI_Command extends WP_CLI_Command {
 	 *     # List all available aliases.
 	 *     $ wp cli alias
 	 *     ---
+	 *
 	 *     @all: Run command against every registered alias.
 	 *     @prod:
 	 *       ssh: runcommand@runcommand.io~/webapps/production

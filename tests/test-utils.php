@@ -210,6 +210,18 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 		$this->assertEquals( null, Utils\parse_ssh_url( $testcase, PHP_URL_PORT ) );
 		$this->assertEquals( null, Utils\parse_ssh_url( $testcase, PHP_URL_PATH ) );
 
+		// vagrant scheme
+		$testcase = 'vagrant:/var/www/html';
+		$this->assertEquals( array(
+			'host' => 'vagrant',
+			'path' => '/var/www/html',
+		), Utils\parse_ssh_url( $testcase ) );
+		$this->assertEquals( null, Utils\parse_ssh_url( $testcase, PHP_URL_SCHEME ) );
+		$this->assertEquals( null, Utils\parse_ssh_url( $testcase, PHP_URL_USER ) );
+		$this->assertEquals( 'vagrant', Utils\parse_ssh_url( $testcase, PHP_URL_HOST ) );
+		$this->assertEquals( null, Utils\parse_ssh_url( $testcase, PHP_URL_PORT ) );
+		$this->assertEquals( '/var/www/html', Utils\parse_ssh_url( $testcase, PHP_URL_PATH ) );
+
 		// unsupported scheme, should not match
 		$testcase = 'foo:bar';
 		$this->assertEquals( array(), Utils\parse_ssh_url( $testcase ) );
@@ -236,15 +248,44 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 			'eval',
 			'echo wp_get_current_user()->user_login;',
 		), Utils\parse_str_to_argv( 'eval "echo wp_get_current_user()->user_login;"' ) );
+		$this->assertEquals( array(
+			'post',
+			'create',
+			'--post_title="Hello world!"',
+		), Utils\parse_str_to_argv( 'post create --post_title="Hello world!"' ) );
+		$this->assertEquals( array(
+			'post',
+			'create',
+			'--post_title=\'Mixed "quotes are working" hopefully\'',
+		), Utils\parse_str_to_argv( 'post create --post_title=\'Mixed "quotes are working" hopefully\'' ) );
+		$this->assertEquals( array(
+			'post',
+			'create',
+			'--post_title="Escaped \"double \"quotes!"',
+		), Utils\parse_str_to_argv( 'post create --post_title="Escaped \"double \"quotes!"' ) );
+		$this->assertEquals( array(
+			'post',
+			'create',
+			"--post_title='Escaped \'single \'quotes!'",
+		), Utils\parse_str_to_argv( "post create --post_title='Escaped \'single \'quotes!'" ) );
 	}
 
 	public function testAssocArgsToString() {
-		$this->assertEquals( " --url='foo.dev' --porcelain --apple='banana'" , Utils\assoc_args_to_str( array(
+		// Strip quotes for Windows compat.
+		$strip_quotes = function ( $str ) {
+			return str_replace( array( '"', "'" ), '', $str );
+		};
+
+		$expected = " --url='foo.dev' --porcelain --apple='banana'";
+		$actual = Utils\assoc_args_to_str( array(
 			'url'       => 'foo.dev',
 			'porcelain' => true,
 			'apple'     => 'banana'
-		) ) );
-		$this->assertEquals( " --url='foo.dev' --require='file-a.php' --require='file-b.php' --porcelain --apple='banana'" , Utils\assoc_args_to_str( array(
+		) );
+		$this->assertSame( $strip_quotes( $expected ), $strip_quotes( $actual ) );
+
+		$expected = " --url='foo.dev' --require='file-a.php' --require='file-b.php' --porcelain --apple='banana'";
+		$actual = Utils\assoc_args_to_str( array(
 			'url'       => 'foo.dev',
 			'require'   => array(
 				'file-a.php',
@@ -252,10 +293,13 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 			),
 			'porcelain' => true,
 			'apple'     => 'banana'
-		) ) );
+		) );
+		$this->assertSame( $strip_quotes( $expected ), $strip_quotes( $actual ) );
 	}
 
 	public function testForceEnvOnNixSystems() {
+		$env_is_windows = getenv( 'WP_CLI_TEST_IS_WINDOWS' );
+
 		putenv( 'WP_CLI_TEST_IS_WINDOWS=0' );
 		$this->assertSame( '/usr/bin/env cmd', Utils\force_env_on_nix_systems( 'cmd' ) );
 		$this->assertSame( '/usr/bin/env cmd', Utils\force_env_on_nix_systems( '/usr/bin/env cmd' ) );
@@ -264,7 +308,7 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 		$this->assertSame( 'cmd', Utils\force_env_on_nix_systems( 'cmd' ) );
 		$this->assertSame( 'cmd', Utils\force_env_on_nix_systems( '/usr/bin/env cmd' ) );
 
-		putenv( 'WP_CLI_TEST_IS_WINDOWS' );
+		putenv( false === $env_is_windows ? 'WP_CLI_TEST_IS_WINDOWS' : "WP_CLI_TEST_IS_WINDOWS=$env_is_windows" );
 	}
 
 	public function testGetHomeDir() {
@@ -276,11 +320,18 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 
 		putenv( 'HOME=/home/user' );
 		$this->assertSame('/home/user', Utils\get_home_dir() );
-		putenv( 'HOME=' );
-		putenv( 'HOMEDRIVE=C:/\\Windows/\\User/\\' );
-		$this->assertSame( 'C:/\Windows/\User', Utils\get_home_dir() );
-		putenv( 'HOMEPATH=HOGE/\\' );
-		$this->assertSame( 'C:/\Windows/\User/\HOGE', Utils\get_home_dir() );
+
+		putenv( 'HOME' );
+
+		putenv( 'HOMEDRIVE=D:' );
+		putenv( 'HOMEPATH' );
+		$this->assertSame( 'D:', Utils\get_home_dir() );
+
+		putenv( 'HOMEPATH=\\Windows\\User\\' );
+		$this->assertSame( 'D:\\Windows\\User', Utils\get_home_dir() );
+
+		putenv( 'HOMEPATH=\\Windows\\User\\HOGE\\' );
+		$this->assertSame( 'D:\\Windows\\User\\HOGE', Utils\get_home_dir() );
 
 		// restore environments
 		putenv( false === $home ? 'HOME' : "HOME=$home" );
@@ -295,43 +346,42 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 		$this->assertSame( 'a/', Utils\trailingslashit( 'a\\//\\' ) );
 	}
 
+	/**
+	 * @dataProvider dataNormalizePath
+	 */
+	public function testNormalizePath( $path, $expected ) {
+		$this->assertEquals( $expected, Utils\normalize_path( $path ) );
+	}
+
+	public function dataNormalizePath() {
+		return array(
+			array( '', '' ),
+			// Windows paths
+			array( 'C:\\www\\path\\', 'C:/www/path/' ),
+			array( 'C:\\www\\\\path\\', 'C:/www/path/' ),
+			array( 'c:/www/path', 'C:/www/path' ),
+			array( 'c:\\www\\path\\', 'C:/www/path/' ), // uppercase drive letter
+			array( 'c:', 'C:' ),
+			array( 'c:\\', 'C:/' ),
+			array( 'c:\\\\www\\path\\', 'C:/www/path/' ),
+			array( '\\\\Domain\\DFSRoots\\share\\path\\', '//Domain/DFSRoots/share/path/' ),
+			array( '\\\\Server\\share\\path', '//Server/share/path' ),
+			array( '\\\\Server\\share', '//Server/share' ),
+			// Linux paths
+			array( '/', '/' ),
+			array( '/www/path/', '/www/path/' ),
+			array( '/www/path/////', '/www/path/' ),
+			array( '/www/path', '/www/path' ),
+			array( '/www/path', '/www/path' ),
+		);
+	}
+
+	public function testNormalizeEols() {
+		$this->assertSame( "\na\ra\na\n", Utils\normalize_eols( "\r\na\ra\r\na\r\n" ) );
+	}
+
 	public function testGetTempDir() {
 		$this->assertTrue( '/' === substr( Utils\get_temp_dir(), -1 ) );
-
-		// INI directive `sys_temp_dir` introduced PHP 5.5.0.
-		if ( version_compare( PHP_VERSION, '5.5.0', '>=' ) ) {
-
-			// `sys_temp_dir` set.
-
-			$cmd = "WP_CLI_PHP_ARGS='-dsys_temp_dir=\\tmp\\' bin/wp eval 'echo WP_CLI\\Utils\\get_temp_dir();' --skip-wordpress 2>&1";
-			$output = array();
-			exec( $cmd, $output );
-			$this->assertTrue( 2 === count( $output ) );
-			$this->assertTrue( 2 === preg_match_all( '/warning|writable/i', $output[0] ) );
-			$this->assertSame( '\\tmp/', $output[1] );
-
-			// `sys_temp_dir` unset and `upload_tmp_dir' set.
-
-			// `upload_tmp_dir` needs to be a legitimate writable directory.
-			$temp_dir = sys_get_temp_dir() . '/' . uniqid( 'test-utils-get-temp-dir', true );
-			mkdir( $temp_dir, 0777, true );
-			$cmd = "WP_CLI_PHP_ARGS='-dsys_temp_dir=0 -dupload_tmp_dir=$temp_dir\\' bin/wp eval 'echo WP_CLI\\Utils\\get_temp_dir();' --skip-wordpress 2>&1";
-			$output = array();
-			exec( $cmd, $output );
-
-			rmdir( $temp_dir );
-
-			$this->assertTrue( 1 === count( $output ) );
-			$this->assertSame( $temp_dir . '/', trim( $output[0] ) );
-
-			// Both `sys_temp_dir` and `upload_tmp_dir' unset.
-
-			$cmd = "WP_CLI_PHP_ARGS='-dsys_temp_dir=0 -dupload_tmp_dir=0' bin/wp eval 'echo WP_CLI\\Utils\\get_temp_dir();' --skip-wordpress --quiet 2>&1";
-			$output = array();
-			exec( $cmd, $output );
-			$this->assertTrue( 1 === count( $output ) );
-			$this->assertSame( '/tmp/', trim( $output[0] ) );
-		}
 	}
 
 	public function testHttpRequestBadAddress() {
@@ -429,38 +479,6 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 		$class_wp_cli_logger->setValue( $prev_logger );
 	}
 
-	public function testRunMysqlCommandProcDisabled() {
-		$err_msg = 'Error: Cannot do \'run_mysql_command\': The PHP functions `proc_open()` and/or `proc_close()` are disabled';
-
-		$cmd = "WP_CLI_PHP_ARGS='-ddisable_functions=proc_open' bin/wp eval 'WP_CLI\\Utils\\run_mysql_command( null, array() );' --skip-wordpress 2>&1";
-		$output = array();
-		exec( $cmd, $output );
-		$this->assertTrue( 1 === count( $output ) );
-		$this->assertTrue( false !== strpos( trim( $output[0] ), $err_msg ) );
-
-		$cmd = "WP_CLI_PHP_ARGS='-ddisable_functions=proc_close' bin/wp eval 'WP_CLI\\Utils\\run_mysql_command( null, array() );' --skip-wordpress 2>&1";
-		$output = array();
-		exec( $cmd, $output );
-		$this->assertTrue( 1 === count( $output ) );
-		$this->assertTrue( false !== strpos( trim( $output[0] ), $err_msg ) );
-	}
-
-	public function testLaunchEditorForInputProcDisabled() {
-		$err_msg = 'Error: Cannot do \'launch_editor_for_input\': The PHP functions `proc_open()` and/or `proc_close()` are disabled';
-
-		$cmd = "WP_CLI_PHP_ARGS='-ddisable_functions=proc_open' bin/wp eval 'WP_CLI\\Utils\\launch_editor_for_input( null, null );' --skip-wordpress 2>&1";
-		$output = array();
-		exec( $cmd, $output );
-		$this->assertTrue( 1 === count( $output ) );
-		$this->assertTrue( false !== strpos( trim( $output[0] ), $err_msg ) );
-
-		$cmd = "WP_CLI_PHP_ARGS='-ddisable_functions=proc_close' bin/wp eval 'WP_CLI\\Utils\\launch_editor_for_input( null, null );' --skip-wordpress 2>&1";
-		$output = array();
-		exec( $cmd, $output );
-		$this->assertTrue( 1 === count( $output ) );
-		$this->assertTrue( false !== strpos( trim( $output[0] ), $err_msg ) );
-	}
-
 	/**
 	 * @dataProvider dataPastTenseVerb
 	 */
@@ -489,7 +507,7 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 			array( 'check', 'checked' ),
 			array( 'crop', 'cropped' ),
 			array( 'fix', 'fixed' ), // One vowel + final "x" excluded.
-			array( 'hurrah', 'hurrahed' ), // One vowel + final "h" excluded.
+			array( 'ah', 'ahed' ), // One vowel + final "h" excluded.
 			array( 'show', 'showed' ), // One vowel + final "w" excluded.
 			array( 'ski', 'skied' ),
 			array( 'slay', 'slayed' ), // One vowel + final "y" excluded (nearly all irregular anyway).
@@ -506,13 +524,16 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 
 		$dir = __DIR__ . '/data/expand_globs/';
 		$expected = array_map( function ( $v ) use ( $dir ) { return $dir . $v; }, $expected );
+		sort( $expected );
 
 		putenv( 'WP_CLI_TEST_EXPAND_GLOBS_NO_GLOB_BRACE=0' );
 		$out = Utils\expand_globs( $dir . $path );
+		sort( $out );
 		$this->assertSame( $expected, $out );
 
 		putenv( 'WP_CLI_TEST_EXPAND_GLOBS_NO_GLOB_BRACE=1' );
 		$out = Utils\expand_globs( $dir . $path );
+		sort( $out );
 		$this->assertSame( $expected, $out );
 
 		putenv( false === $expand_globs_no_glob_brace ? 'WP_CLI_TEST_EXPAND_GLOBS_NO_GLOB_BRACE' : "WP_CLI_TEST_EXPAND_GLOBS_NO_GLOB_BRACE=$expand_globs_no_glob_brace" );
@@ -585,6 +606,157 @@ class UtilsTest extends PHPUnit_Framework_TestCase {
 			array( '', "Error: Only verbed 1 of 2 nouns.\n", 'noun', 'verb', 2, 1, 1, null ),
 			array( '', "Error: Only verbed 1 of 3 nouns (2 failed).\n", 'noun', 'verb', 3, 1, 2, 0 ),
 			array( '', "Error: Only verbed 1 of 6 nouns (3 failed, 2 skipped).\n", 'noun', 'verb', 6, 1, 3, 2 ),
+		);
+	}
+
+	public function testGetPHPBinary() {
+		$env_php_used = getenv( 'WP_CLI_PHP_USED' );
+		$env_php = getenv( 'WP_CLI_PHP' );
+
+		putenv( 'WP_CLI_PHP_USED' );
+		putenv( 'WP_CLI_PHP' );
+		$get_php_binary = Utils\get_php_binary();
+		$this->assertTrue( is_executable( $get_php_binary ) );
+
+		putenv( 'WP_CLI_PHP_USED=/my-php-5.3' );
+		putenv( 'WP_CLI_PHP' );
+		$get_php_binary = Utils\get_php_binary();
+		$this->assertSame( $get_php_binary, '/my-php-5.3' );
+
+		putenv( 'WP_CLI_PHP=/my-php-7.3' );
+		$get_php_binary = Utils\get_php_binary();
+		$this->assertSame( $get_php_binary, '/my-php-5.3' ); // WP_CLI_PHP_USED wins.
+
+		putenv( 'WP_CLI_PHP_USED' );
+		$get_php_binary = Utils\get_php_binary();
+		$this->assertSame( $get_php_binary, '/my-php-7.3' );
+
+		putenv( false === $env_php_used ? 'WP_CLI_PHP_USED' : "WP_CLI_PHP_USED=$env_php_used" );
+		putenv( false === $env_php ? 'WP_CLI_PHP' : "WP_CLI_PHP=$env_php" );
+	}
+
+	/**
+	 * @dataProvider dataProcOpenCompatWinEnv
+	 */
+	public function testProcOpenCompatWinEnv( $cmd, $env, $expected_cmd, $expected_env ) {
+		$env_is_windows = getenv( 'WP_CLI_TEST_IS_WINDOWS' );
+
+		putenv( 'WP_CLI_TEST_IS_WINDOWS=1' );
+
+		$cmd = Utils\_proc_open_compat_win_env( $cmd, $env );
+		$this->assertSame( $expected_cmd, $cmd );
+		$this->assertSame( $expected_env, $env );
+
+		putenv( false === $env_is_windows ? 'WP_CLI_TEST_IS_WINDOWS' : "WP_CLI_TEST_IS_WINDOWS=$env_is_windows" );
+	}
+
+	function dataProcOpenCompatWinEnv() {
+		return array(
+			array( 'echo', array(), 'echo', array() ),
+			array( 'ENV=blah echo', array(), 'echo', array( 'ENV' => 'blah' ) ),
+			array( 'ENV="blah blah" echo', array(), 'echo', array( 'ENV' => 'blah blah' ) ),
+			array( 'ENV_1="blah1 blah1" ENV_2="blah2" ENV_3=blah3 echo', array(), 'echo', array( 'ENV_1' => 'blah1 blah1', 'ENV_2' => 'blah2', 'ENV_3' => 'blah3' ) ),
+			array( 'ENV= echo', array(), 'echo', array( 'ENV' => '' ) ),
+			array( 'ENV=0 echo', array(), 'echo', array( 'ENV' => '0' ) ),
+
+			// With `$env` set.
+			array( 'echo', array( 'ENV' => 'in' ), 'echo', array( 'ENV' => 'in' ) ),
+			array( 'ENV=blah echo', array( 'ENV_1' => 'in1', 'ENV_2' => 'in2' ), 'echo', array( 'ENV_1' => 'in1', 'ENV_2' => 'in2', 'ENV' => 'blah' ) ),
+			array( 'ENV="blah blah" echo', array( 'ENV' => 'in' ), 'echo', array( 'ENV' => 'blah blah' ) ),
+
+			// Special cases.
+			array( '1=1 echo', array(), '1=1 echo', array() ), // Must begin with alphabetic or underscore.
+			array( '_eNv=1 echo', array(), 'echo', array( '_eNv' => '1' ) ), // Mixed-case and beginning with underscore allowed.
+			array( 'ENV=\'blah blah\' echo', array(), 'blah\' echo', array( 'ENV' => '\'blah' ) ), // Unix escaping not supported, ie treated literally.
+		);
+	}
+
+	/**
+	 * Copied from core "tests/phpunit/tests/db.php" (adapted to not use `$wpdb`).
+	 */
+	function test_esc_like() {
+		$inputs   = array(
+			'howdy%', //Single Percent
+			'howdy_', //Single Underscore
+			'howdy\\', //Single slash
+			'howdy\\howdy%howdy_', //The works
+			'howdy\'"[[]*#[^howdy]!+)(*&$#@!~|}{=--`/.,<>?', //Plain text
+		);
+		$expected = array(
+			'howdy\\%',
+			'howdy\\_',
+			'howdy\\\\',
+			'howdy\\\\howdy\\%howdy\\_',
+			'howdy\'"[[]*#[^howdy]!+)(*&$#@!~|}{=--`/.,<>?',
+		);
+
+		foreach ( $inputs as $key => $input ) {
+			$this->assertEquals( $expected[ $key ], Utils\esc_like( $input ) );
+		}
+	}
+
+	/** @dataProvider dataIsJson */
+	public function testIsJson( $argument, $ignore_scalars, $expected ) {
+		$this->assertEquals( $expected, Utils\is_json( $argument, $ignore_scalars ) );
+	}
+
+	public function dataIsJson() {
+		return array(
+			array( '42', true, false ),
+			array( '42', false, true ),
+			array( '"test"', true, false ),
+			array( '"test"', false, true ),
+			array( '{"key1":"value1","key2":"value2"}', true, true ),
+			array( '{"key1":"value1","key2":"value2"}', false, true ),
+			array( '["value1","value2"]', true, true ),
+			array( '["value1","value2"]', false, true ),
+			array( '0', true, false ),
+			array( '0', false, true ),
+			array( '', true, false ),
+			array( '', false, false ),
+		);
+	}
+
+	/** @dataProvider dataParseShellArray */
+	public function testParseShellArray( $assoc_args, $array_arguments, $expected ) {
+		$this->assertEquals( $expected, Utils\parse_shell_arrays( $assoc_args, $array_arguments ) );
+	}
+
+	public function dataParseShellArray() {
+		return array(
+			array( array( 'alpha' => '{"key":"value"}' ), array(), array( 'alpha' => '{"key":"value"}' ) ),
+			array( array( 'alpha' => '{"key":"value"}' ), array( 'alpha' ), array( 'alpha' => array( 'key' => 'value' ) ) ),
+			array( array( 'alpha' => '{"key":"value"}' ), array( 'beta' ), array( 'alpha' => '{"key":"value"}' ) ),
+		);
+	}
+
+	/** @dataProvider dataPluralize */
+	public function testPluralize( $singular, $count, $expected ) {
+		$this->assertEquals( $expected, Utils\pluralize( $singular, $count ) );
+	}
+
+	public function dataPluralize() {
+		return array(
+			array( 'string', 1, 'string' ),
+			array( 'string', 2, 'strings' ),
+			array( 'string', null, 'strings' ),
+		);
+	}
+
+	/** @dataProvider dataPickFields */
+	public function testPickFields( $data, $fields, $expected ) {
+		$this->assertEquals( $expected, Utils\pick_fields( $data, $fields ) );
+	}
+
+	public function dataPickFields() {
+		return array(
+			array( array( 'keyA' => 'valA', 'keyB' => 'valB', 'keyC' => 'valC' ), array( 'keyB' ), array( 'keyB' => 'valB' ) ),
+			array( array( '1' => 'valA', '2' => 'valB', '3' => 'valC' ), array( '2' ), array( '2' => 'valB' ) ),
+			array( array( 1 => 'valA', 2 => 'valB', 3 => 'valC' ), array( 2 ), array( 2 => 'valB' ) ),
+			array( (object) array( 'keyA' => 'valA', 'keyB' => 'valB', 'keyC' => 'valC' ), array( 'keyB' ), array( 'keyB' => 'valB' ) ),
+			array( array(), array( 'keyB' ), array( 'keyB' => null ) ),
+			array( array( 'keyA' => 'valA', 'keyB' => 'valB', 'keyC' => 'valC' ), array( 'keyD' ), array( 'keyD' => null ) ),
+			array( array( 'keyA' => 'valA', 'keyB' => 'valB', 'keyC' => 'valC' ), array( 'keyA', 'keyB', 'keyC', 'keyD' ), array( 'keyA' => 'valA', 'keyB' => 'valB', 'keyC' => 'valC', 'keyD' => null ) ),
 		);
 	}
 }

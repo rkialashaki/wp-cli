@@ -2,6 +2,8 @@
 
 namespace WP_CLI;
 
+use WP_CLI\Utils;
+
 /**
  * Run a system process, and learn what happened.
  */
@@ -51,8 +53,8 @@ class Process {
 		$proc = new self;
 
 		$proc->command = $command;
-		$proc->cwd = $cwd;
-		$proc->env = $env;
+		$proc->cwd     = $cwd;
+		$proc->env     = $env;
 
 		return $proc;
 	}
@@ -67,7 +69,7 @@ class Process {
 	public function run() {
 		$start_time = microtime( true );
 
-		$proc = proc_open( $this->command, self::$descriptors, $pipes, $this->cwd, $this->env );
+		$proc = Utils\proc_open_compat( $this->command, self::$descriptors, $pipes, $this->cwd, $this->env );
 
 		$stdout = stream_get_contents( $pipes[1] );
 		fclose( $pipes[1] );
@@ -89,13 +91,13 @@ class Process {
 
 		return new ProcessRun(
 			array(
-				'stdout' => $stdout,
-				'stderr' => $stderr,
+				'stdout'      => $stdout,
+				'stderr'      => $stderr,
 				'return_code' => $return_code,
-				'command' => $this->command,
-				'cwd' => $this->cwd,
-				'env' => $this->env,
-				'run_time' => $run_time,
+				'command'     => $this->command,
+				'cwd'         => $this->cwd,
+				'env'         => $this->env,
+				'run_time'    => $run_time,
 			)
 		);
 	}
@@ -110,6 +112,22 @@ class Process {
 
 		// $r->STDERR is incorrect, but kept incorrect for backwards-compat
 		if ( $r->return_code || ! empty( $r->STDERR ) ) {
+			throw new \RuntimeException( $r );
+		}
+
+		return $r;
+	}
+
+	/**
+	 * Run the command, but throw an Exception on error.
+	 * Same as `run_check()` above, but checks the correct stderr.
+	 *
+	 * @return ProcessRun
+	 */
+	public function run_check_stderr() {
+		$r = $this->run();
+
+		if ( $r->return_code || ! empty( $r->stderr ) ) {
 			throw new \RuntimeException( $r );
 		}
 

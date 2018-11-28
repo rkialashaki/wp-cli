@@ -48,9 +48,9 @@ class FileCache {
 	 * @param string $whitelist  List of characters that are allowed in path names (used in a regex character class)
 	 */
 	public function __construct( $cacheDir, $ttl, $maxSize, $whitelist = 'a-z0-9._-' ) {
-		$this->root = Utils\trailingslashit( $cacheDir );
-		$this->ttl = (int) $ttl;
-		$this->maxSize = (int) $maxSize;
+		$this->root      = Utils\trailingslashit( $cacheDir );
+		$this->ttl       = (int) $ttl;
+		$this->maxSize   = (int) $maxSize;
 		$this->whitelist = $whitelist;
 
 		if ( ! $this->ensure_dir_exists( $this->root ) ) {
@@ -215,7 +215,7 @@ class FileCache {
 			return false;
 		}
 
-		$ttl = $this->ttl;
+		$ttl     = $this->ttl;
 		$maxSize = $this->maxSize;
 
 		// unlink expired files
@@ -245,6 +245,62 @@ class FileCache {
 					unlink( $file->getRealPath() );
 				}
 			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Remove all cached files.
+	 *
+	 * @return bool
+	 */
+	public function clear() {
+		if ( ! $this->enabled ) {
+			return false;
+		}
+
+		$finder = $this->get_finder();
+
+		foreach ( $finder as $file ) {
+			unlink( $file->getRealPath() );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Remove all cached files except for the newest version of one.
+	 *
+	 * @return bool
+	 */
+	public function prune() {
+		if ( ! $this->enabled ) {
+			return false;
+		}
+
+		/* @var Finder $finder */
+		$finder = $this->get_finder()->sortByName();
+
+		$files_to_delete = array();
+
+		foreach ( $finder as $file ) {
+			$pieces    = explode( '-', $file->getBasename( $file->getExtension() ) );
+			$timestamp = end( $pieces );
+
+			// No way to compare versions, do nothing.
+			if ( ! is_numeric( $timestamp ) ) {
+				continue;
+			}
+
+			$basename_without_timestamp = str_replace( '-' . $timestamp, '', $file->getBasename() );
+
+			// There's a file with an older timestamp, delete it.
+			if ( isset( $files_to_delete[ $basename_without_timestamp ] ) ) {
+				unlink( $files_to_delete[ $basename_without_timestamp ] );
+			}
+
+			$files_to_delete[ $basename_without_timestamp ] = $file->getRealPath();
 		}
 
 		return true;
@@ -297,13 +353,13 @@ class FileCache {
 	protected function validate_key( $key ) {
 		$url_parts = parse_url( $key );
 		if ( ! empty( $url_parts['scheme'] ) ) { // is url
-			$parts = array( 'misc' );
+			$parts   = array( 'misc' );
 			$parts[] = $url_parts['scheme'] . '-' . $url_parts['host'] .
 				( empty( $url_parts['port'] ) ? '' : '-' . $url_parts['port'] );
 			$parts[] = substr( $url_parts['path'], 1 ) .
 				( empty( $url_parts['query'] ) ? '' : '-' . $url_parts['query'] );
 		} else {
-			$key = str_replace( '\\', '/', $key );
+			$key   = str_replace( '\\', '/', $key );
 			$parts = explode( '/', ltrim( $key ) );
 		}
 

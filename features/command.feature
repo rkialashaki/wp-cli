@@ -3,252 +3,10 @@ Feature: WP-CLI Commands
   Scenario: Registered WP-CLI commands
     Given an empty directory
 
-    When I run `wp cache --help`
-    Then STDOUT should contain:
-      """
-      wp cache <command>
-      """
-
-    When I run `wp cap --help`
-    Then STDOUT should contain:
-      """
-      wp cap <command>
-      """
-
-    When I run `wp checksum --help`
-    Then STDOUT should contain:
-      """
-      wp checksum <command>
-      """
-
-    When I run `wp comment --help`
-    Then STDOUT should contain:
-      """
-      wp comment <command>
-      """
-
-    When I run `wp config --help`
-    Then STDOUT should contain:
-      """
-      wp config <command>
-      """
-
-    When I run `wp core --help`
-    Then STDOUT should contain:
-      """
-      wp core <command>
-      """
-
-    When I run `wp cron --help`
-    Then STDOUT should contain:
-      """
-      wp cron <command>
-      """
-
-    When I run `wp cron`
-    Then STDOUT should contain:
-      """
-      usage: wp cron event <command>
-         or: wp cron schedule <command>
-         or: wp cron test
-      """
-
-    When I run `wp db --help`
-    Then STDOUT should contain:
-      """
-      wp db <command>
-      """
-
-    When I run `wp db`
-    Then STDOUT should contain:
-      """
-      or: wp db cli
-      """
-
-    When I run `wp eval --help`
-    Then STDOUT should contain:
-      """
-      wp eval <php-code>
-      """
-
-    When I run `wp eval-file --help`
-    Then STDOUT should contain:
-      """
-      wp eval-file <file> [<arg>...]
-      """
-
-    When I run `wp export --help`
-    Then STDOUT should contain:
-      """
-      wp export [--dir=<dirname>]
-      """
-
     When I run `wp help --help`
     Then STDOUT should contain:
       """
       wp help [<command>...]
-      """
-
-    When I run `wp import --help`
-    Then STDOUT should contain:
-      """
-      wp import <file>... --authors=<authors>
-      """
-
-    When I run `wp language --help`
-    Then STDOUT should contain:
-      """
-      wp language <command>
-      """
-
-    When I run `wp media --help`
-    Then STDOUT should contain:
-      """
-      wp media <command>
-      """
-
-    When I run `wp media`
-    Then STDOUT should contain:
-      """
-      or: wp media regenerate
-      """
-
-    When I run `wp menu --help`
-    Then STDOUT should contain:
-      """
-      wp menu <command>
-      """
-
-    When I run `wp network --help`
-    Then STDOUT should contain:
-      """
-      wp network <command>
-      """
-
-    When I run `wp option --help`
-    Then STDOUT should contain:
-      """
-      wp option <command>
-      """
-
-    When I run `wp package --help`
-    Then STDOUT should contain:
-      """
-      wp package <command>
-      """
-
-    When I run `wp package`
-    Then STDOUT should contain:
-      """
-      or: wp package install
-      """
-
-    When I run `wp plugin --help`
-    Then STDOUT should contain:
-      """
-      wp plugin <command>
-      """
-
-    When I run `wp post --help`
-    Then STDOUT should contain:
-      """
-      wp post <command>
-      """
-
-    When I run `wp post-type --help`
-    Then STDOUT should contain:
-      """
-      wp post-type <command>
-      """
-
-    When I run `wp rewrite --help`
-    Then STDOUT should contain:
-      """
-      wp rewrite <command>
-      """
-
-    When I run `wp role --help`
-    Then STDOUT should contain:
-      """
-      wp role <command>
-      """
-
-    When I run `wp scaffold --help`
-    Then STDOUT should contain:
-      """
-      wp scaffold <command>
-      """
-
-    When I run `wp search-replace --help`
-    Then STDOUT should contain:
-      """
-      wp search-replace <old> <new>
-      """
-
-    When I run `wp server --help`
-    Then STDOUT should contain:
-      """
-      wp server [--host=<host>]
-      """
-
-    When I run `wp shell --help`
-    Then STDOUT should contain:
-      """
-      wp shell [--basic]
-      """
-
-    When I run `wp sidebar --help`
-    Then STDOUT should contain:
-      """
-      wp sidebar <command>
-      """
-
-    When I run `wp site --help`
-    Then STDOUT should contain:
-      """
-      wp site <command>
-      """
-
-    When I run `wp super-admin --help`
-    Then STDOUT should contain:
-      """
-      wp super-admin <command>
-      """
-
-    When I run `wp taxonomy --help`
-    Then STDOUT should contain:
-      """
-      wp taxonomy <command>
-      """
-
-    When I run `wp term --help`
-    Then STDOUT should contain:
-      """
-      wp term <command>
-      """
-
-    When I run `wp theme --help`
-    Then STDOUT should contain:
-      """
-      wp theme <command>
-      """
-
-    When I run `wp transient --help`
-    Then STDOUT should contain:
-      """
-      wp transient <command>
-      """
-
-    When I run `wp user --help`
-    Then STDOUT should contain:
-      """
-      wp user <command>
-      """
-
-    When I run `wp widget --help`
-    Then STDOUT should contain:
-      """
-      wp widget <command>
       """
 
   Scenario: Invalid class is specified for a command
@@ -580,6 +338,8 @@ Feature: WP-CLI Commands
       """
       usage: wp foo <message> --apple=<apple> [--meal=<meal>]
       """
+    And STDERR should be empty
+    And the return code should be 1
 
     When I run `wp help foo`
     Then STDOUT should contain:
@@ -645,6 +405,226 @@ Feature: WP-CLI Commands
       """
       Message is: hello
       Success: dinner
+      """
+
+  Scenario: Register a synopsis that supports multiple positional arguments
+    Given an empty directory
+    And a test-cmd.php file:
+      """
+      <?php
+      WP_CLI::add_command( 'foo', function( $args ){
+        WP_CLI::log( count( $args ) );
+      }, array(
+        'when' => 'before_wp_load',
+        'synopsis' => array(
+          array(
+            'type'      => 'positional',
+            'name'      => 'arg',
+            'repeating' => true,
+          ),
+        ),
+      ));
+      """
+    And a wp-cli.yml file:
+      """
+      require:
+        - test-cmd.php
+      """
+
+    When I run `wp foo bar`
+    Then STDOUT should be:
+      """
+      1
+      """
+
+    When I run `wp foo bar burrito`
+    Then STDOUT should be:
+      """
+      2
+      """
+
+  Scenario: Register a synopsis that requires a flag
+    Given an empty directory
+    And a test-cmd.php file:
+      """
+      <?php
+      WP_CLI::add_command( 'foo', function( $_, $assoc_args ){
+        WP_CLI::log( \WP_CLI\Utils\get_flag_value( $assoc_args, 'honk' ) ? 'honked' : 'nohonk' );
+      }, array(
+        'when' => 'before_wp_load',
+        'synopsis' => array(
+          array(
+            'type'     => 'flag',
+            'name'     => 'honk',
+            'optional' => true,
+          ),
+        ),
+      ));
+      """
+    And a wp-cli.yml file:
+      """
+      require:
+        - test-cmd.php
+      """
+
+    When I run `wp foo`
+    Then STDOUT should be:
+      """
+      nohonk
+      """
+
+    When I run `wp foo --honk`
+    Then STDOUT should be:
+      """
+      honked
+      """
+
+    When I run `wp foo --honk=1`
+    Then STDOUT should be:
+      """
+      honked
+      """
+
+    When I run `wp foo --no-honk`
+    Then STDOUT should be:
+      """
+      nohonk
+      """
+
+    When I run `wp foo --honk=0`
+    Then STDOUT should be:
+      """
+      nohonk
+      """
+
+    # Note treats "false" as true.
+    When I run `wp foo --honk=false`
+    Then STDOUT should be:
+      """
+      honked
+      """
+
+  Scenario: Register a longdesc for a given command
+    Given an empty directory
+    And a custom-cmd.php file:
+      """
+      <?php
+      function foo() {
+        WP_CLI::success( 'Command run.' );
+      }
+      WP_CLI::add_command( 'foo', 'foo', array(
+        'shortdesc'   => 'My awesome function command',
+        'when'        => 'before_wp_load',
+        'longdesc'    => '## EXAMPLES' . PHP_EOL . PHP_EOL . '  # Run the custom foo command',
+      ) );
+      """
+    And a wp-cli.yml file:
+      """
+      require:
+        - custom-cmd.php
+      """
+
+    When I run `wp help foo`
+    Then STDOUT should contain:
+      """
+      NAME
+
+        wp foo
+
+      DESCRIPTION
+
+        My awesome function command
+
+      SYNOPSIS
+
+        wp foo 
+
+      EXAMPLES
+
+        # Run the custom foo command
+
+      GLOBAL PARAMETERS
+
+      """
+
+    # With synopsis, appended.
+    Given a hello-command.php file:
+      """
+      <?php
+        $hello_command = function( $args, $assoc_args ) {
+            list( $name ) = $args;
+            $type = $assoc_args['type'];
+            WP_CLI::$type( "Hello, $name!" );
+            if ( isset( $assoc_args['honk'] ) ) {
+                WP_CLI::log( 'Honk!' );
+            }
+        };
+        WP_CLI::add_command( 'example hello', $hello_command, array(
+            'shortdesc' => 'Prints a greeting.',
+            'synopsis' => array(
+                array(
+                    'type'      => 'positional',
+                    'name'      => 'name',
+                    'description' => 'Name of person to greet.',
+                    'optional'  => false,
+                    'repeating' => false,
+                ),
+                array(
+                    'type'     => 'assoc',
+                    'name'     => 'type',
+                    'optional' => true,
+                    'default'  => 'success',
+                    'options'  => array( 'success', 'error' ),
+                ),
+                array(
+                    'type'     => 'flag',
+                    'name'     => 'honk',
+                    'optional' => true,
+                ),
+            ),
+            'when' => 'after_wp_load',
+            'longdesc'    => "\r\n## EXAMPLES\n\n# Say hello to Newman\nwp example hello Newman\nSuccess: Hello, Newman!",
+      ) );
+      """
+
+    When I run `wp --require=hello-command.php help example hello`
+    Then STDOUT should contain:
+      """
+      NAME
+
+        wp example hello
+
+      DESCRIPTION
+
+        Prints a greeting.
+
+      SYNOPSIS
+
+        wp example hello <name> [--type=<type>] [--honk]
+
+      OPTIONS
+
+        <name>
+          Name of person to greet.
+
+        [--type=<type>]
+        ---
+        default: success
+        options:
+        - success
+        - error
+        ---
+
+        [--honk]
+
+      EXAMPLES
+
+        # Say hello to Newman
+        wp example hello Newman
+        Success: Hello, Newman!
+
+      GLOBAL PARAMETERS
+
       """
 
   Scenario: Register a command with default and accepted arguments.
@@ -879,7 +859,7 @@ Feature: WP-CLI Commands
       """
 
   Scenario: Default arguments should respect wp-cli.yml
-    Given a WP install
+    Given a WP installation
     And a wp-cli.yml file:
       """
       post list:
@@ -921,7 +901,7 @@ Feature: WP-CLI Commands
     And STDERR should be empty
 
   Scenario: WP-CLI suggests matching commands when user entry contains typos
-    Given a WP install
+    Given a WP installation
 
     When I try `wp clu`
     Then STDERR should contain:
@@ -969,7 +949,7 @@ Feature: WP-CLI Commands
       WP_CLI::add_command( 'test-command-2', function () {} );
       """
 
-    When I run `wp --require=abort-add-command.php`
+    When I try `wp --require=abort-add-command.php`
     Then STDOUT should contain:
       """
       test-command-1
@@ -978,6 +958,11 @@ Feature: WP-CLI Commands
       """
       test-command-2
       """
+    And STDERR should be:
+      """
+      Warning: Aborting the addition of the command 'test-command-2' with reason: Testing hooks..
+      """
+    And the return code should be 0
 
   Scenario: Adding a command can depend on a previous command having been added before
     Given an empty directory
@@ -1032,7 +1017,7 @@ Feature: WP-CLI Commands
       """
 
   Scenario: Command additions should work as plugins
-    Given a WP install
+    Given a WP installation
     And a wp-content/plugins/test-cli/command.php file:
       """
       <?php
@@ -1082,7 +1067,7 @@ Feature: WP-CLI Commands
     And STDERR should be empty
 
   Scenario: Command additions should work as must-use plugins
-    Given a WP install
+    Given a WP installation
     And a wp-content/mu-plugins/test-cli.php file:
       """
       <?php
@@ -1131,7 +1116,7 @@ Feature: WP-CLI Commands
     And STDERR should be empty
 
   Scenario: Command additions should work when registered on after_wp_load
-    Given a WP install
+    Given a WP installation
     And a wp-content/mu-plugins/test-cli.php file:
       """
       <?php
@@ -1182,7 +1167,7 @@ Feature: WP-CLI Commands
     And STDERR should be empty
 
   Scenario: The command should fire on `after_wp_load`
-    Given a WP install
+    Given a WP installation
     And a custom-cmd.php file:
       """
       <?php
@@ -1209,14 +1194,14 @@ Feature: WP-CLI Commands
       """
 
     When I run `wp command after_wp_load`
-    Then STDOUT should be:
+    Then STDOUT should contain:
       """
       bool(true)
       """
     And the return code should be 0
 
     When I run `wp command before_wp_load`
-    Then STDOUT should be:
+    Then STDOUT should contain:
       """
       bool(false)
       """
@@ -1225,12 +1210,12 @@ Feature: WP-CLI Commands
     When I try `wp command after_wp_load --path=/tmp`
     Then STDERR should contain:
       """
-      Error: This does not seem to be a WordPress install.
+      Error: This does not seem to be a WordPress installation.
       """
     And the return code should be 1
 
   Scenario: The command should fire on `before_wp_load`
-    Given a WP install
+    Given a WP installation
     And a custom-cmd.php file:
       """
       <?php
@@ -1259,7 +1244,7 @@ Feature: WP-CLI Commands
 
     When I run `wp command before_wp_load`
     Then STDERR should be empty
-    And STDOUT should be:
+    And STDOUT should contain:
       """
       bool(false)
       """
@@ -1267,14 +1252,14 @@ Feature: WP-CLI Commands
 
     When I run `wp command after_wp_load`
     Then STDERR should be empty
-    And STDOUT should be:
+    And STDOUT should contain:
       """
       bool(true)
       """
     And the return code should be 0
 
   Scenario: Command hook should fires as expected on __invoke()
-    Given a WP install
+    Given a WP installation
     And a custom-cmd.php file:
       """
       <?php
@@ -1298,7 +1283,7 @@ Feature: WP-CLI Commands
       """
 
     When I run `wp command`
-    Then STDOUT should be:
+    Then STDOUT should contain:
       """
       bool(true)
       """
@@ -1307,6 +1292,159 @@ Feature: WP-CLI Commands
     When I try `wp command --path=/tmp`
     Then STDERR should contain:
       """
-      Error: This does not seem to be a WordPress install.
+      Error: This does not seem to be a WordPress installation.
       """
     And the return code should be 1
+
+  Scenario: Command namespaces can be added and are shown in help
+    Given an empty directory
+    And a command-namespace.php file:
+      """
+      <?php
+      /**
+       * My Command Namespace Description.
+       */
+      class My_Command_Namespace extends \WP_CLI\Dispatcher\CommandNamespace {}
+      WP_CLI::add_command( 'my-namespaced-command', 'My_Command_Namespace' );
+      """
+
+    When I run `wp help --require=command-namespace.php`
+    Then STDOUT should contain:
+      """
+      my-namespaced-command
+      """
+    And STDOUT should contain:
+      """
+      My Command Namespace Description.
+      """
+    And STDERR should be empty
+
+  Scenario: Command namespaces are only added when the command does not exist
+    Given an empty directory
+    And a command-namespace.php file:
+      """
+      <?php
+      /**
+       * My Actual Namespaced Command.
+       */
+      class My_Namespaced_Command extends WP_CLI_Command {}
+      WP_CLI::add_command( 'my-namespaced-command', 'My_Namespaced_Command' );
+
+      /**
+       * My Command Namespace Description.
+       */
+      class My_Command_Namespace extends \WP_CLI\Dispatcher\CommandNamespace {}
+      WP_CLI::add_command( 'my-namespaced-command', 'My_Command_Namespace' );
+      """
+
+    When I run `wp help --require=command-namespace.php`
+    Then STDOUT should contain:
+      """
+      my-namespaced-command
+      """
+    And STDOUT should contain:
+      """
+      My Actual Namespaced Command.
+      """
+    And STDERR should be empty
+
+  Scenario: Command namespaces are replaced by commands of the same name
+    Given an empty directory
+    And a command-namespace.php file:
+      """
+      <?php
+      /**
+       * My Command Namespace Description.
+       */
+      class My_Command_Namespace extends \WP_CLI\Dispatcher\CommandNamespace {}
+      WP_CLI::add_command( 'my-namespaced-command', 'My_Command_Namespace' );
+
+      /**
+       * My Actual Namespaced Command.
+       */
+      class My_Namespaced_Command extends WP_CLI_Command {}
+      WP_CLI::add_command( 'my-namespaced-command', 'My_Namespaced_Command' );
+      """
+
+    When I run `wp help --require=command-namespace.php`
+    Then STDOUT should contain:
+      """
+      my-namespaced-command
+      """
+    And STDOUT should contain:
+      """
+      My Actual Namespaced Command.
+      """
+    And STDERR should be empty
+
+  Scenario: Empty command namespaces show a notice when invoked
+    Given an empty directory
+    And a command-namespace.php file:
+      """
+      <?php
+      /**
+       * My Command Namespace Description.
+       */
+      class My_Command_Namespace extends \WP_CLI\Dispatcher\CommandNamespace {}
+      WP_CLI::add_command( 'my-namespaced-command', 'My_Command_Namespace' );
+      """
+
+    When I run `wp --require=command-namespace.php my-namespaced-command`
+    Then STDOUT should contain:
+      """
+      The namespace my-namespaced-command does not contain any usable commands in the current context.
+      """
+    And STDERR should be empty
+
+  Scenario: Late-registered command should appear in command usage
+    Given a WP installation
+    And a test-cmd.php file:
+      """
+      <?php
+      WP_CLI::add_wp_hook( 'plugins_loaded', function(){
+        WP_CLI::add_command( 'core custom-subcommand', function() {});
+      });
+      """
+    And a wp-cli.yml file:
+      """
+      require:
+        - test-cmd.php
+      """
+
+    When I run `wp help core`
+    Then STDOUT should contain:
+      """
+      custom-subcommand
+      """
+
+    When I run `wp core`
+    Then STDOUT should contain:
+      """
+      usage:
+      """
+    And STDOUT should contain:
+      """
+      core update
+      """
+    And STDOUT should contain:
+      """
+      core custom-subcommand
+      """
+
+  Scenario: An activated plugin should successfully add custom commands when hooked on the cli_init action
+    Given a WP installation
+    And a wp-content/plugins/custom-command/custom-cmd.php file:
+      """
+      <?php
+      // Plugin Name: Custom Command
+
+      add_action( 'cli_init', function() {
+        WP_CLI::add_command( 'custom', function () {} );
+      } );
+      """
+    And I run `wp plugin activate custom-command`
+    When I run `wp custom --help`
+    Then STDOUT should contain:
+    """
+    wp custom
+    """

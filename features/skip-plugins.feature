@@ -1,7 +1,7 @@
 Feature: Skipping plugins
 
   Scenario: Skipping plugins via global flag
-    Given a WP install
+    Given a WP installation
     And I run `wp plugin activate hello akismet`
 
     When I run `wp eval 'var_export( defined("AKISMET_VERSION") );var_export( function_exists( "hello_dolly" ) );'`
@@ -32,7 +32,7 @@ Feature: Skipping plugins
       """
 
     # Can specify multiple plugins to skip
-    When I try `wp eval --skip-plugins=hello,akismet 'ini_set( "error_log", null ); echo hello_dolly();'`
+    When I try `wp eval --skip-plugins=hello,akismet 'echo hello_dolly();'`
     Then STDERR should contain:
       """
       Call to undefined function hello_dolly()
@@ -46,7 +46,7 @@ Feature: Skipping plugins
       """
 
   Scenario: Skipping multiple plugins via config file
-    Given a WP install
+    Given a WP installation
     And a wp-cli.yml file:
       """
       skip-plugins:
@@ -55,32 +55,43 @@ Feature: Skipping plugins
       """
 
     When I run `wp plugin activate hello`
-    And I try `wp eval 'ini_set( "error_log", null ); echo hello_dolly();'`
+    And I try `wp eval 'echo hello_dolly();'`
     Then STDERR should contain:
       """
       Call to undefined function hello_dolly()
       """
 
   Scenario: Skipping all plugins via config file
-    Given a WP install
+    Given a WP installation
     And a wp-cli.yml file:
       """
       skip-plugins: true
       """
 
     When I run `wp plugin activate hello`
-    And I try `wp eval 'ini_set( "error_log", null ); echo hello_dolly();'`
+    And I try `wp eval 'echo hello_dolly();'`
     Then STDERR should contain:
       """
       Call to undefined function hello_dolly()
       """
 
   Scenario: Skip network active plugins
-    Given a WP multisite install
-    And I run `wp plugin deactivate akismet hello`
-    And I run `wp plugin activate --network akismet hello`
+    Given a WP multisite installation
 
-    When I run `wp eval 'var_export( defined("AKISMET_VERSION") );var_export( function_exists( "hello_dolly" ) );'`
+    When I try `wp plugin deactivate akismet hello`
+    Then STDERR should be:
+      """
+      Warning: Plugin 'akismet' isn't active.
+      Warning: Plugin 'hello' isn't active.
+      """
+    And STDOUT should be:
+      """
+      Success: Plugins already deactivated.
+      """
+    And the return code should be 0
+
+    When I run `wp plugin activate --network akismet hello`
+    And I run `wp eval 'var_export( defined("AKISMET_VERSION") );var_export( function_exists( "hello_dolly" ) );'`
     Then STDOUT should be:
       """
       truetrue
